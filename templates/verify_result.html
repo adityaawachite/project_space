@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Verification Result — UISP{% endblock %}
+{% block body %}
+<div class="auth-wrap" style="align-items:flex-start; padding-top:60px;">
+  <div class="glass" style="width:100%; max-width:560px; padding:34px 38px;">
+    <a href="{{ url_for('dashboard', view='verify') }}" style="font-size:13px; color:var(--text-soft);">← Back to verification</a>
+    <h1 style="margin:14px 0 20px;">Verification Result</h1>
+
+    {% if mode == 'image' %}
+      <p style="font-size:13px; color:var(--text-soft);">Decoded UISP_ID from uploaded image:</p>
+      <div class="hex-chip">{{ decoded_hex }}</div>
+
+      {% if matched_user %}
+        <div class="flash success" style="margin-top:20px;">Match found — verified identity.</div>
+        <table class="simple" style="margin-top:14px;">
+          <tr><th>Name</th><td>{{ matched_user.first_name }} {{ matched_user.last_name }}</td></tr>
+          <tr><th>Designation</th><td>{{ matched_user.designation }}</td></tr>
+          <tr><th>Region</th><td>{{ matched_user.region }}</td></tr>
+          <tr><th>UISP_ID</th><td><span class="tag-mono">{{ matched_user.uisp_id }}</span></td></tr>
+        </table>
+      {% else %}
+        <div class="flash error" style="margin-top:20px;">No user in this organization matches that code.</div>
+      {% endif %}
+
+    {% else %}
+      <p style="font-size:13px; color:var(--text-soft);">Application_ID searched:</p>
+      <div class="hex-chip">{{ searched_id }}</div>
+
+      {% if application %}
+        <div class="flash {{ 'success' if chain_ok else 'error' }}" style="margin-top:20px;">{{ chain_msg }}</div>
+        <table class="simple" style="margin-top:14px;">
+          <tr><th>Title</th><td>{{ application.title }}</td></tr>
+          <tr><th>Status</th><td><span class="status-badge status-{{ application.status }}">{{ application.status }}</span></td></tr>
+          <tr><th>Created</th><td>{{ application.created_at[:19].replace('T',' ') }}</td></tr>
+        </table>
+        <a class="btn btn-sm" style="margin-top:16px;" href="{{ url_for('view_application', application_id=application.application_id) }}">Open Application</a>
+      {% else %}
+        <div class="flash error" style="margin-top:20px;">No application found with that ID.</div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

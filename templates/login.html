@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Sign in — UISP{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+  <div class="glass auth-card">
+    <h1>Welcome back</h1>
+    <p class="subtitle">Sign in to your Unified Identity and Signature Platform account.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-list">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" required autofocus>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" required>
+      </div>
+      <button class="btn btn-block" type="submit">Sign In</button>
+    </form>
+
+    <p class="auth-footer">No account yet? <a href="{{ url_for('register') }}"><strong>Create one</strong></a></p>
+
+    <div class="demo-hint">
+      <strong>Demo login</strong><br>
+      Email: adigorkshnathawachite@gmail.com<br>
+      Password: Ad12ya@aw
+    </div>
+  </div>
+</div>
+{% endblock %}

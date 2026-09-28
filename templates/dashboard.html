@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — UISP{% endblock %}
+{% block body %}
+<div class="app-shell {% if view == 'new' %}focus-mode{% endif %}">
+
+  <header class="glass header">
+    <div class="header-left">
+      <div class="avatar">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+      {% if view != 'new' %}
+      <div>
+        <div class="header-name">{{ user.first_name }} {{ user.last_name }}</div>
+        <div class="header-meta">{{ user.designation }} · {{ user.region }}</div>
+        <div class="header-id">UISP_ID: <span class="tag-mono">{{ user.uisp_id }}</span></div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if view != 'new' %}
+    <div class="bento-search" style="position:relative;">
+      <input id="global-search-input" type="text" placeholder="Search users, organizations, UISP_ID...">
+      <div id="global-search-results" class="glass"></div>
+    </div>
+    {% endif %}
+
+    <div class="header-right">
+      <span class="pill">● Online</span>
+      <div class="icon-btn" title="Notifications">🔔</div>
+      <a class="icon-btn" href="{{ url_for('logout') }}" title="Logout">⏻</a>
+    </div>
+  </header>
+
+  <nav class="glass nav">
+    {% set nav_items = [
+      ('profile', '👤', 'Profile'),
+      ('new', '✏️', 'New Application'),
+      ('pending', '⏳', 'Pending'),
+      ('previous', '📜', 'Previous'),
+      ('unknown', '❓', 'Unknown'),
+      ('reject', '🚫', 'Reject'),
+      ('org', '🏢', 'Organization Control'),
+      ('verify', '🔎', 'Application Verification'),
+      ('settings', '⚙️', 'Settings'),
+    ] %}
+    {% for key, icon, label in nav_items %}
+      <a class="nav-item {% if view == key %}active{% endif %}" href="{{ url_for('dashboard', view=key) }}">
+        <span>{{ icon }}</span>
+        <span class="nav-label">{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <main class="main">
+    <div class="glass bento">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-list">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {# ============ PROFILE ============ #}
+      {% if view == 'profile' %}
+        <div class="profile-header">
+          <div class="profile-avatar">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+          <div>
+            <h2 style="margin:0;">{{ user.first_name }} {{ user.last_name }}</h2>
+            <p style="margin:4px 0; color:var(--text-soft);">{{ user.designation }} · {{ user.region }}</p>
+            <p style="margin:0; font-size:13px;">Email: {{ user.email }}</p>
+          </div>
+        </div>
+        <div class="glass code-panel">
+          <h3 style="margin-top:0;">Permanent 80-bit Visual Cryptographic Code</h3>
+          {% if own_code_url %}
+            <img src="{{ own_code_url }}" alt="80-bit visual code">
+          {% endif %}
+          <div><span class="hex-chip">{{ user.uisp_id }}</span></div>
+          <p style="font-size:12.5px; color:var(--text-soft); margin-top:12px;">8×10 grid · 20 hex characters · 80 bits · filled = 0, hollow ring = 1</p>
+        </div>
+
+      {# ============ NEW APPLICATION (focus mode) ============ #}
+      {% elif view == 'new' %}
+        <a href="{{ url_for('dashboard', view='profile') }}" class="icon-btn" style="margin-bottom:18px; display:inline-flex;">←</a>
+        <h2 class="bento-title">New Application</h2>
+        <p class="bento-sub">Choose a template, fill in the receiver and write your application.</p>
+
+        <form method="POST" action="{{ url_for('create_application') }}" onsubmit="syncEditorContent()">
+          <input type="hidden" name="template_id" id="template_id_input" value="{{ templates[0].id if templates else '' }}">
+          <input type="hidden" name="content_body" id="content_body_input">
+
+          <div class="template-grid">
+            {% for t in templates %}
+              <div class="glass template-card {% if loop.first %}selected{% endif %}" onclick="selectTemplate({{ t.id }}, this)">
+                <div class="emoji">
+                  {% if t.template_name == 'Fund Request' %}💰
+                  {% elif t.template_name == 'Notices' %}📢
+                  {% elif t.template_name == 'Leave' %}🏖️
+                  {% elif t.template_name == 'Approval' %}✅
+                  {% elif t.template_name == 'Custom Application' %}🧩
+                  {% else %}📄{% endif %}
+                </div>
+                <div><strong>{{ t.template_name }}</strong></div>
+                <div style="font-size:11.5px; color:var(--text-soft);">{{ t.category }}</div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="grid-cols" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+            <div class="field">
+              <label>Title</label>
+              <input type="text" name="title" required placeholder="Subject of your application">
+            </div>
+            <div class="field">
+              <label>Receiver UISP_ID</label>
+              <input type="text" name="receiver_uisp_id" required placeholder="20-character UISP_ID" list="org-members">
+              <datalist id="org-members">
+                {% for m in org_members %}
+                  <option value="{{ m.uisp_id }}">{{ m.first_name }} {{ m.last_name }}</option>
+                {% endfor %}
+              </datalist>
+            </div>
+          </div>
+
+          <label style="font-size:13px; color:var(--text-soft); display:block; margin-bottom:8px;">Application Content</label>
+          <div class="editor-toolbar">
+            <button type="button" onclick="formatDoc('bold')"><b>B</b></button>
+            <button type="button" onclick="formatDoc('italic')"><i>I</i></button>
+            <button type="button" onclick="formatDoc('underline')"><u>U</u></button>
+          </div>
+          <div id="editor-body" class="editor-body" contenteditable="true"
+               placeholder="Write your application here..."></div>
+
+          <div style="margin-top:22px; display:flex; gap:12px;">
+            <button class="btn" type="submit">Submit Application</button>
+            <a class="btn btn-outline" href="{{ url_for('dashboard', view='profile') }}">Cancel</a>
+          </div>
+        </form>
+
+      {# ============ PENDING ============ #}
+      {% elif view == 'pending' %}
+        <h2 class="bento-title">Pending Applications</h2>
+        <p class="bento-sub">Applications you sent that are awaiting action, and applications waiting on you.</p>
+
+        <div class="section-title">Awaiting your action</div>
+        {% if received %}
+          {% for a in received %}
+            <a class="glass app-row" href="{{ url_for('view_application', application_id=a.application_id) }}" data-searchable="{{ a.title }} {{ a.application_id }}">
+              <div>
+                <strong>{{ a.title }}</strong>
+                <div class="meta">{{ a.application_id }} · from {{ a.receiver_name }}</div>
+              </div>
+              <span class="status-badge status-{{ a.status }}">{{ a.status }}</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">Nothing waiting on you right now.</div>
+        {% endif %}
+
+        <div class="section-title">Sent by you, awaiting approval</div>
+        {% if sent %}
+          {% for a in sent %}
+            <a class="glass app-row" href="{{ url_for('view_application', application_id=a.application_id) }}">
+              <div>
+                <strong>{{ a.title }}</strong>
+                <div class="meta">{{ a.application_id }} · to {{ a.receiver_name }}</div>
+              </div>
+              <span class="status-badge status-{{ a.status }}">{{ a.status }}</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">You have nothing pending approval.</div>
+        {% endif %}
+
+      {# ============ PREVIOUS ============ #}
+      {% elif view == 'previous' %}
+        <h2 class="bento-title">Previous Applications</h2>
+        <p class="bento-sub">Your full application history (approved or rejected).</p>
+        {% if applications %}
+          {% for a in applications %}
+            <a class="glass app-row" href="{{ url_for('view_application', application_id=a.application_id) }}">
+              <div>
+                <strong>{{ a.title }}</strong>
+                <div class="meta">{{ a.application_id }} · updated {{ a.updated_at[:10] }}</div>
+              </div>
+              <span class="status-badge status-{{ a.status }}">{{ a.status }}</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">No historical applications yet.</div>
+        {% endif %}
+
+      {# ============ UNKNOWN ============ #}
+      {% elif view == 'unknown' %}
+        <h2 class="bento-title">Unknown Senders</h2>
+        <p class="bento-sub">Applications received from senders outside your organization.</p>
+        {% if applications %}
+          <table class="simple">
+            <thead><tr><th>Sender</th><th>Region</th><th>Organization</th><th>UISP_ID</th><th>Application</th><th></th></tr></thead>
+            <tbody>
+            {% for a in applications %}
+              <tr>
+                <td>{{ a.s_first }} {{ a.s_last }}</td>
+                <td>{{ a.s_region }}</td>
+                <td>{{ a.s_org or '—' }}</td>
+                <td><span class="tag-mono">{{ a.s_uisp }}</span></td>
+                <td>{{ a.title }}</td>
+                <td><a class="btn btn-sm btn-outline" href="{{ url_for('application_pdf', application_id=a.application_id) }}">PDF</a></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="empty-state">No applications from unrecognized senders.</div>
+        {% endif %}
+
+      {# ============ REJECT ============ #}
+      {% elif view == 'reject' %}
+        <h2 class="bento-title">Rejected Applications</h2>
+        {% if applications %}
+          {% for a in applications %}
+            <a class="glass app-row" href="{{ url_for('view_application', application_id=a.application_id) }}">
+              <div>
+                <strong>{{ a.title }}</strong>
+                <div class="meta">{{ a.application_id }} · {{ a.rejection_comment }}</div>
+              </div>
+              <span class="status-badge status-Rejected">Rejected</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">No rejected applications.</div>
+        {% endif %}
+
+      {# ============ ORGANIZATION CONTROL ============ #}
+      {% elif view == 'org' %}
+        <h2 class="bento-title">Organization Control</h2>
+        <p class="bento-sub">Members of {{ members[0].org_name if members else 'your organization' }}.</p>
+        <div class="grid-cols">
+          {% for m in members %}
+            <div class="glass card">
+              <h3>{{ m.first_name }} {{ m.last_name }}</h3>
+              <p>{{ m.designation }} · {{ m.region }}</p>
+              <p style="margin-top:8px;"><span class="tag-mono">{{ m.uisp_id }}</span></p>
+            </div>
+          {% endfor %}
+        </div>
+
+      {# ============ APPLICATION VERIFICATION ============ #}
+      {% elif view == 'verify' %}
+        <h2 class="bento-title">Application Verification</h2>
+        <p class="bento-sub">Verify a scanned visual code, or look up an Application_ID.</p>
+
+        <div class="tabs">
+          <div id="tab-btn-image" class="tab-btn active" onclick="showTab('image')">Upload Image</div>
+          <div id="tab-btn-manual" class="tab-btn" onclick="showTab('manual')">Enter Application_ID</div>
+        </div>
+
+        <div id="tab-panel-image" class="tab-panel active glass" style="padding:24px;">
+          <form method="POST" action="{{ url_for('verify_upload') }}" enctype="multipart/form-data">
+            <div class="field">
+              <label>Upload the 80-bit visual code image (PNG/JPG)</label>
+              <input type="file" name="code_image" accept="image/png,image/jpeg" required>
+            </div>
+            <button class="btn" type="submit">Verify</button>
+          </form>
+        </div>
+
+        <div id="tab-panel-manual" class="tab-panel glass" style="padding:24px;">
+          <form method="POST" action="{{ url_for('verify_manual') }}">
+            <div class="field">
+              <label>Application_ID</label>
+              <input type="text" name="application_id" required placeholder="e.g. UISP-GEN-2026-1234A">
+            </div>
+            <button class="btn" type="submit">Look Up</button>
+          </form>
+        </div>
+
+      {# ============ SETTINGS ============ #}
+      {% elif view == 'settings' %}
+        <h2 class="bento-title">Settings</h2>
+
+        <div class="section-title">Personal Information</div>
+        <form method="POST" action="{{ url_for('update_settings') }}" class="glass" style="padding:22px; margin-bottom: 24px;">
+          <div class="grid-cols" style="grid-template-columns: 1fr 1fr;">
+            <div class="field">
+              <label>Designation</label>
+              <input type="text" name="designation" value="{{ user.designation }}">
+            </div>
+            <div class="field">
+              <label>Region / Address</label>
+              <input type="text" name="region" value="{{ user.region }}">
+            </div>
+          </div>
+          <button class="btn btn-sm" type="submit">Save Changes</button>
+        </form>
+
+        <div class="section-title">Activity Log</div>
+        <table class="simple" style="margin-bottom:24px;">
+          <thead><tr><th>Event</th><th>Result</th><th>When</th></tr></thead>
+          <tbody>
+          {% for l in logs %}
+            <tr>
+              <td>{{ l.event_type.replace('_',' ')|title }}</td>
+              <td>{% if l.success %}✅{% else %}❌{% endif %}</td>
+              <td>{{ l.created_at[:19].replace('T',' ') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="empty-state">No activity yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="section-title">Privacy &amp; Security</div>
+        <p style="font-size:13px; color:var(--text-soft);">Your UISP_ID is permanent and cannot be changed. Passwords are hashed and never stored in plain text.</p>
+
+        <div class="section-title">Help &amp; Support</div>
+        <p style="font-size:13px; color:var(--text-soft);">This is a local demo build of UISP-Lite. For production deployments, replace SQLite with PostgreSQL and add real email/SMS notification delivery.</p>
+
+        <div class="section-title">About UISP</div>
+        <p style="font-size:13px; color:var(--text-soft);">Unified Identity and Signature Platform — a scaled-down MVP: Flask + SQLite + OpenCV visual cryptography.</p>
+
+        <div class="divider"></div>
+        <div style="display:flex; gap:12px;">
+          <a class="btn btn-outline" href="{{ url_for('logout') }}">Logout</a>
+          <form method="POST" action="{{ url_for('delete_account') }}" onsubmit="return confirm('Delete your account permanently?');">
+            <button class="btn btn-danger" type="submit">Delete Account</button>
+          </form>
+        </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+
+{% if view != 'new' %}
+<a href="{{ url_for('dashboard', view='new') }}" class="fab" title="New Application">+</a>
+{% endif %}
+{% endblock %}
